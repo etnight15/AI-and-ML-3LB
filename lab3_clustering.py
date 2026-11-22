@@ -21,6 +21,7 @@
 
 
 import warnings
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -47,7 +48,29 @@ plt.rcParams.update({
     "figure.dpi": 110,
     "axes.titlesize": 12,
     "font.family": "DejaVu Sans",
+    "savefig.facecolor": "white",
 })
+
+try:
+    HERE = Path(__file__).resolve().parent
+except NameError:
+    HERE = Path.cwd()
+FIGURES = HERE / "figures"
+RESULTS = HERE / "results"
+FIGURES.mkdir(exist_ok=True)
+RESULTS.mkdir(exist_ok=True)
+
+
+def save_show(name):
+    plt.gcf().savefig(FIGURES / name, bbox_inches="tight")
+    print("Сохранён график:", name)
+    plt.show()
+
+
+def save_table(frame, name):
+    frame.to_csv(RESULTS / name, encoding="utf-8-sig")
+    print("Сохранена таблица:", name)
+
 
 RANDOM_STATE = 42
 SAMPLE_SIZE = 6000
@@ -93,6 +116,7 @@ summary = summary.rename(columns={
     "excess_kurtosis": "эксцесс",
 })
 display(summary.round(3))
+save_table(summary.round(3), "описательные_статистики.csv")
 
 normal_sample = tracks[AUDIO_FEATURES].sample(5000, random_state=RANDOM_STATE)
 normality_rows = []
@@ -106,6 +130,7 @@ for feature in AUDIO_FEATURES:
         "p-value": p_value,
     })
 normality = pd.DataFrame(normality_rows)
+save_table(normality, "нормальность.csv")
 display(normality.style.format({
     "асимметрия": "{:.3f}",
     "эксцесс": "{:.3f}",
@@ -122,7 +147,7 @@ for axis, feature in zip(axes.ravel(), AUDIO_FEATURES):
     axis.set_title(feature)
 fig.suptitle("Распределения аудиопризнаков и кривая нормального закона с теми же средним и СКО", y=1.02)
 fig.tight_layout()
-plt.show()
+save_show("01_распределения.png")
 
 raw_variance_share = tracks[AUDIO_FEATURES].var()
 raw_variance_share = (raw_variance_share / raw_variance_share.sum()).rename("доля дисперсии")
@@ -139,7 +164,7 @@ fig, axis = plt.subplots(figsize=(8.2, 6.4))
 sns.heatmap(correlation, annot=True, fmt=".2f", cmap="vlag", center=0, ax=axis, annot_kws={"size": 8})
 axis.set_title("Корреляция аудиопризнаков")
 fig.tight_layout()
-plt.show()
+save_show("02_корреляция.png")
 
 def iqr_fence_share(series):
     q1 = series.quantile(0.25)
@@ -156,6 +181,7 @@ def iqr_fence_share(series):
     })
 
 iqr_table = tracks[AUDIO_FEATURES].apply(iqr_fence_share).T
+save_table(iqr_table, "выбросы_iqr.csv")
 display(iqr_table.style.format({
     "Q1": "{:.3f}",
     "Q3": "{:.3f}",
@@ -172,7 +198,7 @@ for axis, feature in zip(axes.ravel(), AUDIO_FEATURES):
     axis.set_xticks([])
 fig.suptitle("Ящики с усами без отдельных точек: форма распределения, а не шкала хвоста", y=1.02)
 fig.tight_layout()
-plt.show()
+save_show("03_ящики_с_усами.png")
 
 print(
     "duration_ms: медиана "
@@ -205,6 +231,7 @@ comparison["относительное отклонение"] = (
     comparison["подвыборка 6000"] - comparison["вся очищенная таблица"]
 ) / comparison["вся очищенная таблица"]
 display(comparison.round(4))
+save_table(comparison.round(4), "подвыборка_средние.csv")
 
 scaler = StandardScaler()
 X = scaler.fit_transform(sample[AUDIO_FEATURES])
@@ -216,6 +243,8 @@ pair_features = ["acousticness", "energy", "loudness", "danceability", "valence"
 pair_view = scaled[pair_features].sample(700, random_state=RANDOM_STATE)
 graph = sns.pairplot(pair_view, corner=True, diag_kind="hist", plot_kws={"s": 8, "alpha": 0.35, "color": "#4C78A8"}, height=1.45)
 graph.fig.suptitle("Матрица диаграмм рассеяния в стандартизованных координатах", y=1.02)
+graph.fig.savefig(FIGURES / "04_матрица_рассеяния.png", bbox_inches="tight")
+print("Сохранён график:", "04_матрица_рассеяния.png")
 plt.show()
 
 
@@ -249,6 +278,8 @@ for k in K_RANGE:
     })
 hier_k = pd.DataFrame(hier_rows)
 
+save_table(kmeans_k, "подбор_k_kmeans.csv")
+save_table(hier_k, "подбор_k_уорд.csv")
 display(kmeans_k.style.format({
     "инерция": "{:.1f}",
     "силуэт": "{:.3f}",
@@ -276,7 +307,7 @@ axes[1].set_title("Силуэтный анализ")
 axes[1].set_xticks(list(K_RANGE))
 axes[1].legend()
 fig.tight_layout()
-plt.show()
+save_show("05_локоть_и_силуэт.png")
 
 fig, axes = plt.subplots(1, 2, figsize=(11, 4))
 axes[0].plot(kmeans_k["k"], kmeans_k["Калинский–Харабаш"], marker="o", label="K-means")
@@ -290,7 +321,7 @@ for axis in axes:
     axis.set_xticks(list(K_RANGE))
     axis.legend()
 fig.tight_layout()
-plt.show()
+save_show("06_индексы_качества.png")
 
 
 # ========================================================================
@@ -363,6 +394,7 @@ metrics = pd.DataFrame({
         np.nan,
     ],
 }, index=["Силуэт", "Калинский–Харабаш", "Дэвис–Болдин", "Инерция"])
+save_table(metrics, "сравнение_методов.csv")
 display(metrics.style.format("{:.3f}", na_rep="—"))
 agreement_metrics = pd.DataFrame({
     "значение": [
@@ -372,6 +404,7 @@ agreement_metrics = pd.DataFrame({
     ]
 }, index=["ARI двух разбиений", "NMI двух разбиений", "доля совпавших имён"])
 display(agreement_metrics.round(3))
+save_table(agreement_metrics.round(3), "согласованность_методов.csv")
 
 print("K-means: размер, компактность, силуэт по кластерам")
 display(kmeans_within.style.format({
@@ -383,7 +416,9 @@ display(kmeans_within.style.format({
     "средний силуэт": "{:.3f}",
 }).hide(axis="index"))
 print("Расстояния между центрами K-means в стандартизованном пространстве")
+save_table(kmeans_within, "геометрия_kmeans.csv")
 display(kmeans_between.round(3))
+save_table(kmeans_between.round(3), "расстояния_центров_kmeans.csv")
 
 print("Уорд: размер, компактность, силуэт по кластерам")
 display(hier_within.style.format({
@@ -395,7 +430,9 @@ display(hier_within.style.format({
     "средний силуэт": "{:.3f}",
 }).hide(axis="index"))
 print("Расстояния между центрами Уорда в стандартизованном пространстве")
+save_table(hier_within, "геометрия_уорд.csv")
 display(hier_between.round(3))
+save_table(hier_between.round(3), "расстояния_центров_уорд.csv")
 
 agreement = (kmeans_labels == hier_labels).mean()
 print(f"Доля объектов с одинаковым именем кластера: {agreement:.1%}")
@@ -404,6 +441,7 @@ crosstab = pd.crosstab(
     pd.Series(hier_labels, name="Уорд"),
 ).reindex(index=CLUSTER_ORDER, columns=CLUSTER_ORDER)
 display(crosstab)
+save_table(crosstab, "сопряжённость.csv")
 
 
 # ========================================================================
@@ -419,7 +457,9 @@ for seed in range(5):
         "random_state": seed,
         "ARI с опорным решением": adjusted_rand_score(reference, named),
     })
-display(pd.DataFrame(stability).style.format({"ARI с опорным решением": "{:.3f}"}).hide(axis="index"))
+stability_table = pd.DataFrame(stability)
+save_table(stability_table, "устойчивость_инициализации.csv")
+display(stability_table.style.format({"ARI с опорным решением": "{:.3f}"}).hide(axis="index"))
 
 full_scaler = StandardScaler()
 X_full = full_scaler.fit_transform(clean[AUDIO_FEATURES])
@@ -430,6 +470,7 @@ full_sizes = pd.Series(full_named).value_counts().reindex(CLUSTER_ORDER)
 full_profile.insert(0, "размер", full_sizes.to_numpy())
 print("K-means по всей очищенной таблице")
 display(full_profile.round(3))
+save_table(full_profile.round(3), "центры_полная_выборка.csv")
 print("Доли на полной таблице:")
 display((pd.Series(full_named).value_counts(normalize=True).reindex(CLUSTER_ORDER) * 100).round(1).rename("доля, %").to_frame())
 
@@ -460,6 +501,7 @@ core_check = pd.DataFrame({
     ],
 })
 display(core_check.round(3))
+save_table(core_check.round(3), "проверка_состава_признаков.csv")
 display(pd.Series(core_named).value_counts().reindex(CLUSTER_ORDER).rename("размер без трёх признаков").to_frame())
 
 
@@ -483,7 +525,7 @@ axis.set_title("Дендрограмма Уорда, последние 20 сл�
 axis.set_xlabel("Число объектов в схлопнутой ветви")
 axis.set_ylabel("Расстояние слияния")
 fig.tight_layout()
-plt.show()
+save_show("07_дендрограмма.png")
 
 pca = PCA(n_components=2, random_state=RANDOM_STATE)
 xy = pca.fit_transform(X)
@@ -495,6 +537,7 @@ loadings = pd.DataFrame(
 explained = pca.explained_variance_ratio_
 print(f"Доля дисперсии: PC1 {explained[0]:.1%}, PC2 {explained[1]:.1%}, вместе {explained.sum():.1%}")
 display(loadings.round(3))
+save_table(loadings.round(3), "нагрузки_pca.csv")
 
 fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
 for axis, component in zip(axes, ["PC1", "PC2"]):
@@ -505,7 +548,7 @@ for axis, component in zip(axes, ["PC1", "PC2"]):
     axis.set_title(component)
 fig.suptitle("Нагрузки признаков на первые две главные компоненты", y=1.02)
 fig.tight_layout()
-plt.show()
+save_show("08_нагрузки_pca.png")
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharex=True, sharey=True)
 for axis, labels, title in (
@@ -529,7 +572,7 @@ for axis, labels, title in (
     axis.legend(markerscale=2, frameon=True)
 fig.suptitle("Кластеры в проекции на две главные компоненты", y=1.02)
 fig.tight_layout()
-plt.show()
+save_show("09_кластеры_pca.png")
 
 profile_columns = AUDIO_FEATURES + ["year", "popularity", "explicit", "mode"]
 
@@ -542,9 +585,13 @@ def original_profile(frame, labels):
 
 
 print("Центры K-means в исходных единицах")
-display(original_profile(sample, kmeans_labels).round(3))
+kmeans_centers = original_profile(sample, kmeans_labels).round(3)
+display(kmeans_centers)
+save_table(kmeans_centers, "центры_kmeans.csv")
 print("Центры Уорда в исходных единицах")
-display(original_profile(sample, hier_labels).round(3))
+hier_centers = original_profile(sample, hier_labels).round(3)
+display(hier_centers)
+save_table(hier_centers, "центры_уорд.csv")
 
 
 def z_profile(frame, labels):
@@ -560,7 +607,7 @@ for axis, labels, title in (
     sns.heatmap(z_profile(sample, labels), cmap="vlag", center=0, annot=True, fmt=".2f", ax=axis)
     axis.set_title(f"{title}: центр кластера в долях СКО относительно подвыборки")
 fig.tight_layout()
-plt.show()
+save_show("10_профили_кластеров.png")
 
 overall = X.mean(axis=0)
 total_ss = ((X - overall) ** 2).sum(axis=0)
@@ -570,6 +617,7 @@ for name in CLUSTER_ORDER:
     between_ss += mask.sum() * (X[mask].mean(axis=0) - overall) ** 2
 eta = pd.Series(between_ss / total_ss, index=AUDIO_FEATURES, name="доля межкластерной дисперсии").sort_values(ascending=False)
 display(eta.round(3).to_frame())
+save_table(eta.round(3).to_frame(), "значимость_признаков.csv")
 
 labeled = sample.assign(кластер=kmeans_labels)
 columns = ["кластер", "year", "name", "artists", "speechiness", "energy", "acousticness", "popularity"]
