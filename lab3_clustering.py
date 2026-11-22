@@ -124,18 +124,18 @@ for feature in AUDIO_FEATURES:
     statistic, p_value = stats.shapiro(normal_sample[feature])
     normality_rows.append({
         "признак": feature,
-        "асимметрия": tracks[feature].skew(),
-        "эксцесс": tracks[feature].kurtosis(),
-        "Шапиро–Уилк W": statistic,
-        "p-value": p_value,
+        "асимметрия, n=170653": tracks[feature].skew(),
+        "эксцесс, n=170653": tracks[feature].kurtosis(),
+        "Шапиро–Уилк W, n=5000": statistic,
+        "p-value, n=5000": p_value,
     })
 normality = pd.DataFrame(normality_rows)
 save_table(normality, "нормальность.csv")
 display(normality.style.format({
-    "асимметрия": "{:.3f}",
-    "эксцесс": "{:.3f}",
-    "Шапиро–Уилк W": "{:.3f}",
-    "p-value": "{:.2e}",
+    "асимметрия, n=170653": "{:.3f}",
+    "эксцесс, n=170653": "{:.3f}",
+    "Шапиро–Уилк W, n=5000": "{:.3f}",
+    "p-value, n=5000": "{:.2e}",
 }).hide(axis="index"))
 
 fig, axes = plt.subplots(2, 5, figsize=(14, 5.8))
@@ -149,8 +149,12 @@ fig.suptitle("Распределения аудиопризнаков и кри�
 fig.tight_layout()
 save_show("01_распределения.png")
 
+# Не информационная значимость: дисперсия duration_ms считается в мс²,
+# поэтому доля сырой дисперсии — артефакт единиц измерения.
 raw_variance_share = tracks[AUDIO_FEATURES].var()
-raw_variance_share = (raw_variance_share / raw_variance_share.sum()).rename("доля дисперсии")
+raw_variance_share = (raw_variance_share / raw_variance_share.sum() * 100).rename(
+    "доля сырой дисперсии, %, артефакт единиц"
+)
 display(raw_variance_share.to_frame().style.format("{:.6f}"))
 
 bounded = ["acousticness", "danceability", "energy", "instrumentalness", "liveness", "speechiness", "valence"]
@@ -202,9 +206,11 @@ save_show("03_ящики_с_усами.png")
 
 print(
     "duration_ms: медиана "
-    f"{tracks['duration_ms'].median():.0f} мс, максимум {tracks['duration_ms'].max():.0f} мс; "
-    f"tempo = 0 у {(tracks['tempo'] <= 0).sum()} треков, "
-    f"danceability = 0 у {(tracks['danceability'] <= 0).sum()} треков."
+    f"{tracks['duration_ms'].median():.0f} мс, максимум {tracks['duration_ms'].max():.0f} мс "
+    "(около 90 минут — аудиокнига, не трек); "
+    f"tempo = 0 у {(tracks['tempo'] <= 0).sum()} строк, "
+    f"danceability = 0 у {(tracks['danceability'] <= 0).sum()} строк "
+    "(дефект Spotify API, не пустые треки)."
 )
 
 
@@ -242,7 +248,10 @@ print("СКО после StandardScaler:", np.round(scaled.std(ddof=0).to_numpy(
 pair_features = ["acousticness", "energy", "loudness", "danceability", "valence", "speechiness"]
 pair_view = scaled[pair_features].sample(700, random_state=RANDOM_STATE)
 graph = sns.pairplot(pair_view, corner=True, diag_kind="hist", plot_kws={"s": 8, "alpha": 0.35, "color": "#4C78A8"}, height=1.45)
-graph.fig.suptitle("Матрица диаграмм рассеяния в стандартизованных координатах", y=1.02)
+graph.fig.suptitle(
+    "Матрица рассеяния: 6 признаков из 10, стандартизованные координаты",
+    y=1.02,
+)
 graph.fig.savefig(FIGURES / "04_матрица_рассеяния.png", bbox_inches="tight")
 print("Сохранён график:", "04_матрица_рассеяния.png")
 plt.show()
